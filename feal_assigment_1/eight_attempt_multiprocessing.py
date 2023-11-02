@@ -109,7 +109,7 @@ if __name__ == "__main__":
                 current_data = {}
 
     cryptanalysis = CryptanalysisFEAL()
-    cryptanalysis.linear_cryptanalysis_multiprocessing(data, num_processes=6)  # You can adjust the number of processes
+    cryptanalysis.linear_cryptanalysis_multiprocessing(data, num_processes=6)
 
     print("K0 Candidates:")
     for k0_candidate in cryptanalysis.k0_candidates:
