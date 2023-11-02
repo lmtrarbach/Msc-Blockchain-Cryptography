@@ -8,10 +8,8 @@ def linear_approximation(plaintext, ciphertext, subkey_bit):
         plaintext_byte = int(plaintext[i], 16)
         ciphertext_byte = int(ciphertext[i], 16)
         # sbukeys 0 or 1
-        for subkey_bit_value in  subkey_bit:
-
-            # Define the hypothesis
-            linear_equation = np.bitwise_xor(plaintext_byte, subkey_bit_value) == ciphertext_byte
+        # Define the hypothesis
+        linear_equation = np.bitwise_xor(plaintext_byte, subkey_bit) == ciphertext_byte
 
         # Calculate the correlation between hypothesis and  the actual difference
         correlation += np.sum(linear_equation) / num_samples
@@ -28,7 +26,7 @@ with open("know.txt", "r") as file:
         plaintext = plaintext_line.split("=")[1].strip()
         ciphertext = ciphertext_line.split("=")[1].strip()
         data.append((plaintext, ciphertext))
-subkey_bit = [1, 0]
+subkey_bit = 0
 
 best_correlation = 0
 best_approximation = None

@@ -1,42 +1,17 @@
 import numpy as np
+import random
+
 
 ROUNDS = 4
 
-class InitialApproximation:
-    def __init__(self, key, bias):
-        self.key = key 
-        self.bias = bias
-
-class WeightedApproximation:
-    def __init__(self, a, log2_bias):
-        self.approximation = a
-        self.log2_bias = log2_bias
-        self.bias = 2 ** log2_bias
-        self.transmitted_bits = 1 + a.transmitted_bits
-
-    def key(self):
-        return self.approximation.key()
-
-    def generate_round_approximations(self):
-        a = self.approximation
-        a.generate_weighted_one_round_approximations(self.transmitted_bits)
-        result = []
-        for o in a.weighted_approximations:
-            transmitted_bits = self.transmitted_bits + o.transmitted_bits
-            if transmitted_bits <= 6:
-                w = WeightedApproximation(a, self.log2_bias + o.log2_bias)
-                w.transmitted_bits = transmitted_bits
-                result.append(w)
-        return result
-
 class CryptanalysisFEAL:
-    def __init__(self, key, initial_approximation):
-        self.key = key
+    def __init__(self):
+        self.decrypted_keys_hex = []
         self.decrypted_keys = []
-        self.initial_approximation = initial_approximation
 
     def function_feal_G0_and_G1(self, a, b, add_constant):
         result = (a + b + add_constant) % 256
+        print(f'GBox output:{result}')
         return np.left_shift(result, 2) | np.right_shift(result, 6)
 
     def bytes_to_word32(self, byte_array):
@@ -81,25 +56,24 @@ class CryptanalysisFEAL:
         key = np.array(self.key, dtype=np.uint32)
         right = self.bytes_to_word32(data[:4]) ^ key[4]
         left = right ^ self.bytes_to_word32(data[4:]) ^ key[5]
-        for i in range(ROUNDS):
+        for round in range(ROUNDS):
+            print(f'Executing round {round} key slice {key[ROUNDS - 1 - round]}')
             temp = left
-            left = right ^ self.function_f(left ^ key[ROUNDS - 1 - i])
+            print(f'data slice {data[4:]}')
+            left = right ^ self.function_f(left ^ key[ROUNDS - 1 - round])
             right = temp
+            print(f'left after f round:{left}')
+            print(f'right after f round:{right}')
+
         right ^= left
         decrypted_left = self.word32_to_bytes(left, [0, 0, 0, 0])
         decrypted_right = self.word32_to_bytes(right, [0, 0, 0, 0])
-        return decrypted_left + decrypted_right
+        print(f'decrypted_left:{decrypted_left}')
+        print(f'decrypted_right:{decrypted_right}')
+        return decrypted_left + decrypted_right,key
     
-    def best_initial_approximation(self):
-        if self.initial_approximation:
-            return WeightedApproximation(self.initial_approximation, 0)
-        else:
-            return None
-
-
-    def cryptanalyze(self, data):
-        queue = []
-        seen = {}
+    def cryptanalysis_test_keys(self, data, key):
+        self.key = key
         data_length = len(data)
         i = 0
         while i < data_length:
@@ -109,33 +83,59 @@ class CryptanalysisFEAL:
             ciphertext_hex = ciphertext_line[1]
             plaintext = list(bytearray.fromhex(plaintext_hex))
             encrypted_ciphertext = self.feal_encrypt(plaintext)
-            decrypted_plaintext = self.feal_decrypt(encrypted_ciphertext)
+            decrypted_plaintext, key = self.feal_decrypt(encrypted_ciphertext)
+            decrypted_plaintext_hex = ''.join([f'{x:02X}' for x in decrypted_plaintext])
+            print(f'Decrypted on code in hex {decrypted_plaintext_hex}')
+            print(f'Original plaintext {plaintext_hex}')
+            print(f'Keys {key}')
             if decrypted_plaintext == plaintext:
-                self.decrypted_keys.append(f'{ciphertext_hex}:{decrypted_plaintext}')
+                self.decrypted_keys_hex.append(decrypted_plaintext_hex)
+                self.decrypted_keys.append(key)
                 print("Encryption and Decryption Successful")
-                print(f'{ciphertext_hex}:{decrypted_plaintext}')
+                print(f'{plaintext_hex}:{decrypted_plaintext_hex} with subkey {key}')
             else:
                 print("Encryption and Decryption Failed")
             i += 2
 
-        while queue:
-            v = min(queue, key=lambda x: x[1])
-            queue.remove(v)
-            v = v[0]
-            seen[v] = True
-            for w in v.generate_round_approximations():
-                if w.key() not in seen:
-                    queue.append(w)
-        return min(queue, key=lambda x: x[1])
+    def linear_cryptanalysis(self, data):  
+        data_length = len(data)
+        self.keys_found = []
+        while len(self.keys_found) < 1:
+            key_guess = random.randint(0, 255)
+            i = 0
+            while i < data_length:
+                plaintext_line = int.from_bytes(list(bytearray.fromhex(data[i][1])), byteorder='big')
+                ciphertext_line = int.from_bytes(list(bytearray.fromhex(data[i + 1][1]) ),byteorder='big')
+                equation = (plaintext_line ^ key_guess) & 0x0F
+                print(f'equation: {equation}')
+                print(f'ciphertext_line {ciphertext_line}')
+                if equation == ciphertext_line & 0x0F:
+                    print(f'Found key {key_guess}')
+                    print(f'{plaintext_line}:{ciphertext_line}')
+                    self.keys_found.append(key_guess)
+                i += 2
+
 
 if __name__ == "__main__":
     data = np.loadtxt("know.txt", dtype=str, unpack=False)
-    key = [0x1, 0x3, 0x7, 0x9, 0x11, 0x13]
     
+    
+    # Zero for sure is one key
+    initial_key = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0]
+    
+    cryptanalysis = CryptanalysisFEAL()
+    cryptanalysis.linear_cryptanalysis(data)
+    cryptanalysis.cryptanalysis_test_keys(data, initial_key) 
    
-    initial_approximation = InitialApproximation(key=[0, 0, 0, 0], bias=0.1)
+    if len(cryptanalysis.keys_found) > 0:
+        cryptanalysis.cryptanalysis_test_keys(data, cryptanalysis.keys_found)
+
+    keys =np.unique(np.array(cryptanalysis.decrypted_keys_hex))
+    if len(keys) > 0:
+        print(f'Keys found: {len(keys)}')
+        
+        
+
     
-    cryptanalysis = CryptanalysisFEAL(key, initial_approximation)
-    best_approximation = cryptanalysis.cryptanalyze(data) 
-    print('Decrypted keys:', cryptanalysis.decrypted_keys)
-    print('Best approximation:', best_approximation)
+    
+

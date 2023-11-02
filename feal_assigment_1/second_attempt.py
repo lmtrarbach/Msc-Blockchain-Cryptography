@@ -127,7 +127,7 @@ def feal_decrypt(data, key):
 
 
 data = np.loadtxt("know.txt", dtype=str, unpack=False)
-key = [0x1, 0x3, 0x7, 0x9, 0x11, 0x13]
+key = [0x0, 0x00, 0x08080, 0x8080, 0x11, 0x13]
 i = 0
 decrypted_keys = []
 intersects = []

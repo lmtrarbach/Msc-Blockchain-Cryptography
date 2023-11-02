@@ -135,11 +135,9 @@ def feal_decrypt(data, key):
     unpack_word32_to_bytes(right, data[4:])
 
 if __name__ == "__main__":
-    key = np.loadtxt("know.txt")
-    data = [0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]
+    key = [0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]
+    data = 'a7f1d92a82c8d8fe'
 
-    print("Plaintext=  ", ''.join(format(x, '02x') for x in data))
-    feal_encrypt(data, key)
-    print("Ciphertext= ", ''.join(format(x, '02x') for x in data))
-    feal_decrypt(data, key)
-    print("Plaintext=  ", ''.join(format(x, '02x') for x in data))
+    ciphertext = feal_encrypt(data, key)
+    plaintext = feal_decrypt(ciphertext, key)
+    print(f'Plaintext: {plaintext} and ciphertext: {ciphertext} key: {key}')
