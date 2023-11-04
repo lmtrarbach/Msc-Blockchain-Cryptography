@@ -7,32 +7,19 @@ class CryptanalysisFEAL:
     def F(self, x0, x1, x2, x3):
         """
         Calculate F round function as per equations:
-        f(x_0,x_1,x_2,x_3) = (y_0,y_1,y_2,y_3)
-        
+        f(x_0, x_1, x_2, x_3) = (y_0, y_1, y_2, y_3)
         Where:
-        y_0 = G_0(x_0,y_1)
-        y_1 = G_1(x_0 \oplus x_1,x_2 \oplus x_3)
-        y_2 = G_0(y_1,x_2 \oplus x_3)
-        y_3 = G_1(y_2,x_3)
-
-
+        y_0 = G_0(x_0, y_1)
+        y_1 = G_1(x_0 ^ x_1, x_2 ^ x_3)
+        y_2 = G_0(y_1, x_2 ^ x_3)
+        y_3 = G_1(y_2, x_3)
         """
         def G0(a, b):
-            """
-            G0 box calculate as per the following equation:
-            G_0(a,b) = (a+b \pmod{256}) 
-
-            """
-            return (a + b) % 256
-        # G1 box
+            return ((a + b) % 256) << 2
+        
         def G1(a, b):
-            """
-            G1 box calculate as per the following equation:
-            G_1(a,b) = (a+b+1 \pmod{256})
-            """
-            return (a + b + 1) % 256
+            return ((a + b + 1) % 256) << 2
 
-        # Get the Y as described for F round
         y0 = G0(x0, x1)
         y1 = G1(x0 ^ x1, x2 ^ x3)
         y2 = G0(y1, x2 ^ x3)
@@ -41,39 +28,32 @@ class CryptanalysisFEAL:
         return y0, y1, y2, y3
 
     def calculate_a(self, K0, plaintext, ciphertext):
-        """
-        Function calculate the value of a for the equation
-
-        """
-        # Extract L0, R0, L4, and R4
-        L0 = int(plaintext[:8], 16)
-        R0 = int(plaintext[8:], 16)
-        L4 = int(ciphertext[:8], 16)
-        R4 = int(ciphertext[8:], 16)
-        # Calculate the value of 'a' using NumPy operations
-        s_23_29 = L0 ^ R0 ^ L4 
-        s_31 = L0 ^ L4 ^ R4
-        s_31_f_round = self.F(L0 ^ R0 ^ K0, 0, 0, 0)
-        a = (s_23_29 ^ s_31 ^ s_31_f_round[0]) & 1
-        return a 
+        L0 = int.from_bytes(bytes.fromhex(plaintext[:8]), byteorder='big')
+        R0 = int.from_bytes(bytes.fromhex(plaintext[8:]), byteorder='big')
+        L4 = int.from_bytes(bytes.fromhex(ciphertext[:8]), byteorder='big')
+        R4 = int.from_bytes(bytes.fromhex(ciphertext[8:]), byteorder='big')
+        KEY = np.uint32(K0)
+        s_23_29 = ((L0 ^ R0 ^ L4) >> 8) & 1
+        s_31 = (L0 ^ L4 ^ R4) & 1
+        s_31_f_round = (self.F(L0 ^ R0 ^ KEY, 0, 0, 0)[0] >> 30) & 1
+        a = (s_23_29 ^ s_31 ^ s_31_f_round)
+        print(f'Plaintext: {plaintext}| KEY: {KEY} | a: {a} | L0: {L0} | s_23_29: {s_23_29} | s_31: {s_31} |s_31_f_round: {s_31_f_round}')
+        return a
 
     def linear_cryptanalysis_single_thread(self, data):
-        candidate_values = set()
-        bias = (len(data)/2)
-        for K0 in range(2**32):
-            count = [0,0]
-            candidates_count = len(candidate_values)
+        bias = len(data) - 1
+        for K0 in range(2 ** 64):
+            count = [0, 0]
             for d in data:
-                a = self.calculate_a(K0, d["plaintext"], d["ciphertext"]) 
+                a = self.calculate_a(K0, d["plaintext"], d["ciphertext"])
                 count[a] += 1
-                print(f'Candidates count {candidates_count}|Testing key:{K0} | Count:{count} of {bias} | a: {a}')
-            if count[0] == bias or count[1] == bias:
-                print(f'Candidate found: {K0}')
-                candidate_values.add(K0)
-                break
-
-        self.k0_candidates = candidate_values
-
+                print(f'Testing key:{K0} | Count:{count} of {bias} | a: {a}')
+                if count[0] > 30 and count[1] > 30:
+                    pass
+                if count[0] == bias or count[1] == bias:
+                    print(f'Found key {K0}')
+                    self.k0_candidate = K0
+                    break
 
 if __name__ == "__main__":
     with open("know.txt", "r") as file:
@@ -90,7 +70,4 @@ if __name__ == "__main__":
 
     cryptanalysis = CryptanalysisFEAL()
     cryptanalysis.linear_cryptanalysis_single_thread(data)
-
-    print("K0 Candidates:")
-    for k0_candidate in cryptanalysis.k0_candidates:
-        print(k0_candidate)
+    print("K0 Candidate:", cryptanalysis.k0_candidate)

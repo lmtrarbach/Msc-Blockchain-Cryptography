@@ -1,6 +1,5 @@
 import numpy as np
 import multiprocessing
-import time
 
 class CryptanalysisFEAL:
     def __init__(self):
@@ -22,17 +21,19 @@ class CryptanalysisFEAL:
         def G0(a, b):
             """
             G0 box calculate as per the following equation:
-            G_0(a,b) = (a+b \pmod{256}) 
+            G_0(a,b) = (a+b \pmod{256}) or S_5(G_0(a,b)) = S_7(a \oplus b)
 
             """
-            return (a + b) % 256
+            result = (a + b) % 256
+            return np.left_shift(result, 2) | np.right_shift(result, 6)
         # G1 box
         def G1(a, b):
             """
             G1 box calculate as per the following equation:
             G_1(a,b) = (a+b+1 \pmod{256})
             """
-            return (a + b + 1) % 256
+            result =  (a + b + 1) % 256
+            return np.left_shift(result, 2) | np.right_shift(result, 6)
 
         # Get the Y as described for F round
         y0 = G0(x0, x1)
@@ -48,38 +49,31 @@ class CryptanalysisFEAL:
 
         """
         # Extract L0, R0, L4, and R4
-        L0 = int(plaintext[:8], 16)
-        R0 = int(plaintext[8:], 16)
-        L4 = int(ciphertext[:8], 16)
-        R4 = int(ciphertext[8:], 16)
-        # Calculate the value of 'a' using NumPy operations
-        s_23_29 = L0 ^ R0 ^ L4 
-        s_31 = L0 ^ L4 ^ R4
-        s_31_f_round = self.F(L0 ^ R0 ^ K0, 0, 0, 0)
-        a = (s_23_29 ^ s_31 ^ s_31_f_round[0]) & 1
+        
+        L0 = int.from_bytes(list(bytearray.fromhex(plaintext[:8])), byteorder='big')
+        R0 = int.from_bytes(list(bytearray.fromhex(plaintext[8:] )), byteorder='big')
+        L4 = int.from_bytes(list(bytearray.fromhex(ciphertext[:8])), byteorder='big')
+        R4 = int.from_bytes(list(bytearray.fromhex(ciphertext[:8])), byteorder='big')
+        KEY = np.uint32(K0)
+        s_23_29 = ((L0 ^ R0 ^ L4) >>8 & 1) ^ ((L0 ^ R0 ^ L4) >> 2 & 1) 
+        s_31 = (L0 ^ L4 ^ R4) & 1
+        s_31_f_round = (self.F((L0 ^ R0 ^ KEY), 0, 0, 0)[0]) & 1
+        a = (s_23_29 ^ s_31 ^ s_31_f_round)
         return a 
 
     def linear_cryptanalysis_multiprocessing(self, data, num_processes):
-        def test_key(K0, data, results):
-            candidate_values = set()
-            bias = (len(data)/ 2)
-            for i in range(len(data)):
-                plaintext = data[i]["plaintext"]
-                ciphertext = data[i]["ciphertext"]
-                a = self.calculate_a(K0, plaintext, ciphertext)
-                count = [0,0]
-                candidates_count = len(candidate_values)
-                for d in data:
-                    a = self.calculate_a(K0, d["plaintext"], d["ciphertext"]) 
-                    count[a] += 1
-                    print(f'Candidates count {candidates_count}|Testing key:{K0} | Count:{count} of {bias} | a: {a}')
+        def test_key(K0, data,results):
+            bias = 200
+            count = [0, 0]
+            for d in data:
+                a = self.calculate_a(K0, d["plaintext"], d["ciphertext"])
+                count[a] += 1
+                print(f'Testing key:{K0} | Count:{count} of {bias} | a: {a}')
                 if count[0] == bias or count[1] == bias:
-                    print(f'Candidate found: {K0}')
-                    candidate_values.add(K0)
+                    print(f'Key  found: {K0}')
                     results.put(K0)
                     break
-                    
-                        
+            print(f'Key found exiting')
 
         manager = multiprocessing.Manager()
         results = manager.Queue()
@@ -107,10 +101,9 @@ if __name__ == "__main__":
                 current_data["ciphertext"] = line.replace("Ciphertext=", '').strip()
                 data.append(current_data)
                 current_data = {}
-
+    print(f'Starting to analyze data with length of {len(data)}')
     cryptanalysis = CryptanalysisFEAL()
-    cryptanalysis.linear_cryptanalysis_multiprocessing(data, num_processes=6)
-
+    cryptanalysis.linear_cryptanalysis_multiprocessing(data, num_processes=4)
     print("K0 Candidates:")
     for k0_candidate in cryptanalysis.k0_candidates:
         print(k0_candidate)
