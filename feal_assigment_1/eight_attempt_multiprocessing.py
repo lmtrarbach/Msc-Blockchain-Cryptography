@@ -2,8 +2,9 @@ import numpy as np
 import multiprocessing
 
 class CryptanalysisFEAL:
-    def __init__(self):
+    def __init__(self, data):
         self.k0_candidates = set()
+        self.data = data
 
     def F(self, x0, x1, x2, x3):
         """
@@ -19,21 +20,10 @@ class CryptanalysisFEAL:
 
         """
         def G0(a, b):
-            """
-            G0 box calculate as per the following equation:
-            G_0(a,b) = (a+b \pmod{256}) or S_5(G_0(a,b)) = S_7(a \oplus b)
-
-            """
-            result = (a + b) % 256
-            return np.left_shift(result, 2) | np.right_shift(result, 6)
-        # G1 box
+            return ((a + b) % 256) << 2
+        
         def G1(a, b):
-            """
-            G1 box calculate as per the following equation:
-            G_1(a,b) = (a+b+1 \pmod{256})
-            """
-            result =  (a + b + 1) % 256
-            return np.left_shift(result, 2) | np.right_shift(result, 6)
+            return ((a + b + 1) % 256) << 2
 
         # Get the Y as described for F round
         y0 = G0(x0, x1)
@@ -55,40 +45,47 @@ class CryptanalysisFEAL:
         L4 = int.from_bytes(list(bytearray.fromhex(ciphertext[:8])), byteorder='big')
         R4 = int.from_bytes(list(bytearray.fromhex(ciphertext[:8])), byteorder='big')
         KEY = np.uint32(K0)
-        s_23_29 = ((L0 ^ R0 ^ L4) >>8 & 1) ^ ((L0 ^ R0 ^ L4) >> 2 & 1) 
+        
+        s_29 = (L0 ^ R0 ^ L4) & 1
+        s_23 = ((L0 ^ R0 ^ L4) >> 8) & 1
+        s_23_29 = s_23 ^ s_29
         s_31 = (L0 ^ L4 ^ R4) & 1
-        s_31_f_round = (self.F((L0 ^ R0 ^ KEY), 0, 0, 0)[0]) & 1
+        s_31_f_round = (self.F((L0 ^ R0 ^ K0), 0, 0, 0)[0]) & 1
         a = (s_23_29 ^ s_31 ^ s_31_f_round)
         return a 
 
-    def linear_cryptanalysis_multiprocessing(self, data, num_processes):
-        def test_key(K0, data,results):
-            bias = 200
-            count = [0, 0]
-            for d in data:
-                a = self.calculate_a(K0, d["plaintext"], d["ciphertext"])
-                count[a] += 1
-                print(f'Testing key:{K0} | Count:{count} of {bias} | a: {a}')
+    def linear_cryptanalysis_multiprocessing(self, num_processes):
+        data = self.data
+        bias = len(data) - 10
+        results = multiprocessing.Manager().list()
+
+        def test_key_range(start_key, end_key, results):
+            local_results = set()
+            for K0 in range(start_key, end_key):
+                count = [0, 0]
+                for d in data:
+                    a = self.calculate_a(K0, d["plaintext"], d["ciphertext"])
+                    count[a] += 1
+                    if count[0] > 10 and count[1] > 10:
+                        break
                 if count[0] == bias or count[1] == bias:
-                    print(f'Key  found: {K0}')
-                    results.put(K0)
-                    break
-            print(f'Key found exiting')
+                    local_results.add(K0)
+            results.extend(local_results)
 
-        manager = multiprocessing.Manager()
-        results = manager.Queue()
-
+        key_range = 2 ** 32 // num_processes
         processes = []
-        for K0 in range(2**32):
-            process = multiprocessing.Process(target=test_key, args=(K0, data, results))
-            processes.append(process)
+
+        for i in range(num_processes):
+            start_key = i * key_range
+            end_key = (i + 1) * key_range
+            process = multiprocessing.Process(target=test_key_range, args=(start_key, end_key, results))
             process.start()
+            processes.append(process)
 
         for process in processes:
             process.join()
 
-        while not results.empty():
-            self.k0_candidates.add(results.get())
+        self.k0_candidates = set(results)
 
 if __name__ == "__main__":
     with open("know.txt", "r") as file:
@@ -102,8 +99,13 @@ if __name__ == "__main__":
                 data.append(current_data)
                 current_data = {}
     print(f'Starting to analyze data with length of {len(data)}')
-    cryptanalysis = CryptanalysisFEAL()
-    cryptanalysis.linear_cryptanalysis_multiprocessing(data, num_processes=4)
+    cryptanalysis = CryptanalysisFEAL(data)
+    cryptanalysis.linear_cryptanalysis_multiprocessing(num_processes=8)
     print("K0 Candidates:")
-    for k0_candidate in cryptanalysis.k0_candidates:
-        print(k0_candidate)
+    with open("keys_file.txt", "a+") as keys_file:
+        for each in cryptanalysis.k0_candidates:
+            print(each)
+            keys_file.write(str(each))
+            keys_file.write('\n')
+
+
