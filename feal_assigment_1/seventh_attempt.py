@@ -2,7 +2,7 @@ import numpy as np
 
 class CryptanalysisFEAL:
     def __init__(self):
-        self.k0_candidates = set()
+        self.k0_candidate = set()
 
     def F(self, x0, x1, x2, x3):
         """
@@ -15,10 +15,12 @@ class CryptanalysisFEAL:
         y_3 = G_1(y_2, x_3)
         """
         def G0(a, b):
-            return ((a + b) % 256) << 2
+            result =  ((a + b) % 256)
+            return np.left_shift(result, 2) | np.right_shift(result, 6)
         
         def G1(a, b):
-            return ((a + b + 1) % 256) << 2
+            result =  ((a + b + 1) % 256)
+            return np.left_shift(result, 2) | np.right_shift(result, 6)
 
         y0 = G0(x0, x1)
         y1 = G1(x0 ^ x1, x2 ^ x3)
@@ -32,34 +34,35 @@ class CryptanalysisFEAL:
         R0 = int.from_bytes(bytes.fromhex(plaintext[8:]), byteorder='big')
         L4 = int.from_bytes(bytes.fromhex(ciphertext[:8]), byteorder='big')
         R4 = int.from_bytes(bytes.fromhex(ciphertext[8:]), byteorder='big')
-        KEY = np.uint32(K0)
         s_23_29 = ((L0 ^ R0 ^ L4) >> 8) & 1
         s_31 = (L0 ^ L4 ^ R4) & 1
-        s_31_f_round = (self.F(L0 ^ R0 ^ KEY, 0, 0, 0)[0] >> 30) & 1
+        s_31_f_round = (self.F(L0 ^ R0 ^ K0, 0, 0, 0)[0] >> 30) & 1
         a = (s_23_29 ^ s_31 ^ s_31_f_round)
-        print(f'Plaintext: {plaintext}| KEY: {KEY} | a: {a} | L0: {L0} | s_23_29: {s_23_29} | s_31: {s_31} |s_31_f_round: {s_31_f_round}')
         return a
 
     def linear_cryptanalysis_single_thread(self, data):
-        bias = len(data) - 1
-        for K0 in range(2 ** 64):
+        bias = len(data) - 10
+        keys = np.arange(0, 2 **28)
+        for K0 in keys:
+            key = K0 & 0xFFFFFFFF
+            print(f'Key: {key}')
             count = [0, 0]
             for d in data:
-                a = self.calculate_a(K0, d["plaintext"], d["ciphertext"])
+                a = self.calculate_a(key , d["plaintext"], d["ciphertext"])
                 count[a] += 1
-                print(f'Testing key:{K0} | Count:{count} of {bias} | a: {a}')
                 if count[0] > 30 and count[1] > 30:
                     pass
                 if count[0] == bias or count[1] == bias:
-                    print(f'Found key {K0}')
-                    self.k0_candidate = K0
+                    print(f'Found key {key}')
+                    self.k0_candidate.add(key)
+                    break
+                if key == 0:
                     break
 
 if __name__ == "__main__":
     with open("know.txt", "r") as file:
         data = []
         current_data = {}
-
         for line in file:
             if line.startswith("Plaintext="):
                 current_data["plaintext"] = line.replace("Plaintext=", '').strip()
@@ -70,4 +73,8 @@ if __name__ == "__main__":
 
     cryptanalysis = CryptanalysisFEAL()
     cryptanalysis.linear_cryptanalysis_single_thread(data)
-    print("K0 Candidate:", cryptanalysis.k0_candidate)
+    with open("found_keys1.txt","a") as file_keys:
+        for each in cryptanalysis.k0_candidate:
+            file_keys.write(f'{each}')
+            file_keys.write('\n')
+

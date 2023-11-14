@@ -20,12 +20,13 @@ class CryptanalysisFEAL:
 
         """
         def G0(a, b):
-            return ((a + b) % 256) << 2
+            result =  ((a + b) % 256)
+            return np.left_shift(result, 2) | np.right_shift(result, 6)
         
         def G1(a, b):
-            return ((a + b + 1) % 256) << 2
+            result =  ((a + b + 1) % 256)
+            return np.left_shift(result, 2) | np.right_shift(result, 6)
 
-        # Get the Y as described for F round
         y0 = G0(x0, x1)
         y1 = G1(x0 ^ x1, x2 ^ x3)
         y2 = G0(y1, x2 ^ x3)
@@ -45,22 +46,22 @@ class CryptanalysisFEAL:
         L4 = int.from_bytes(list(bytearray.fromhex(ciphertext[:8])), byteorder='big')
         R4 = int.from_bytes(list(bytearray.fromhex(ciphertext[:8])), byteorder='big')
         KEY = np.uint32(K0)
-        
         s_29 = (L0 ^ R0 ^ L4) & 1
         s_23 = ((L0 ^ R0 ^ L4) >> 8) & 1
         s_23_29 = s_23 ^ s_29
         s_31 = (L0 ^ L4 ^ R4) & 1
-        s_31_f_round = (self.F((L0 ^ R0 ^ K0), 0, 0, 0)[0]) & 1
+        s_31_f_round = (self.F((L0 ^ R0 ^ KEY), 0, 0, 0)[0]) & 1
         a = (s_23_29 ^ s_31 ^ s_31_f_round)
         return a 
 
     def linear_cryptanalysis_multiprocessing(self, num_processes):
         data = self.data
-        bias = len(data) - 10
+        bias = len(data) - 100
         results = multiprocessing.Manager().list()
 
         def test_key_range(start_key, end_key, results):
             local_results = set()
+            
             for K0 in range(start_key, end_key):
                 count = [0, 0]
                 for d in data:
@@ -71,8 +72,9 @@ class CryptanalysisFEAL:
                 if count[0] == bias or count[1] == bias:
                     local_results.add(K0)
             results.extend(local_results)
+            print(f'Range {start_key} to {end_key} Finished')
 
-        key_range = 2 ** 32 // num_processes
+        key_range = 2 ** 22 // num_processes
         processes = []
 
         for i in range(num_processes):
