@@ -30,9 +30,9 @@ class CryptanalysisFEAL:
         L4 = int(ciphertext[:8], 16)
         R4 = int(ciphertext[8:], 16)
 
-        s_23_29 = ((L0 ^ R0 ^ L4) >> 8) & 1
+        s_23_29 = (L0 ^ R0 ^ L4) & 1
         s_31 = (L0 ^ L4 ^ R4) & 1
-        s_31_f_round = (self.F(L0 ^ R0 ^ key, 0, 0, 0)[0] >> 30) & 1
+        s_31_f_round = (self.F(L0 ^ R0 ^ key, 0, 0, 0)[0]) & 1
         a = (s_23_29 ^ s_31 ^ s_31_f_round)
         return a
 
