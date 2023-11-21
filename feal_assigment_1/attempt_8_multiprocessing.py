@@ -1,10 +1,12 @@
 import numpy as np
 import multiprocessing
 
-class CryptanalysisFEAL:
-    def __init__(self, data):
+class CryptanalysisFEAL:    
+    def __init__(self, data, pool):
         self.k0_candidates = multiprocessing.Queue()
         self.data = data
+        self.pool = pool
+        
 
     def F(self, x0, x1, x2, x3):
         def G0(a, b):
@@ -70,8 +72,7 @@ class CryptanalysisFEAL:
                         print(f'Adding key: {K0} to Queue')
                         self.k0_candidates.put(K0)
                         break
-
-            
+                    
         key_range = (2 ** 32) - 1  
         process_chunks = num_processes 
         chunk_size = key_range // process_chunks
@@ -79,10 +80,19 @@ class CryptanalysisFEAL:
         processes = []
         for start_key, end_key in ranges:
             print(f'Starting on range {start_key} to {end_key}')
-            process = multiprocessing.Process(target=test_key_range, args=(start_key, end_key))
-            process.start()
-            processes.append(process)
-            
-        for process in processes:
-            process.join()
-            process.terminate() 
+            process = multiprocessing.Process(target=test_key_range, args=(start_key, end_key))            
+            # processes.append(process)
+            # process.start()
+            self.pool.apply_async(process)
+ 
+        self.pool.close()
+        self.pool.join()
+
+
+        
+
+
+        # for process in processes:
+        #     process.start()
+        #     process.join()
+        #     process.terminate() 
