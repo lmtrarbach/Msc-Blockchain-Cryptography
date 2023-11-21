@@ -3,7 +3,7 @@ import multiprocessing
 
 class CryptanalysisFEAL:
     def __init__(self, data):
-        self.k0_candidates = multiprocessing.Queue()
+        self.k0_candidates = set()
         self.data = data
 
     def F(self, x0, x1, x2, x3):
@@ -68,7 +68,7 @@ class CryptanalysisFEAL:
                     if count[0] > bias or count[1] > bias:
                         print(f'Found key {K0} count:{count}')
                         print(f'Adding key: {K0} to Queue')
-                        self.k0_candidates.put(K0)
+                        self.k0_candidates.add(K0)
                         break
 
             
