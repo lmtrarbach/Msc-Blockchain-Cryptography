@@ -11,7 +11,8 @@ COPY 10_vectorized.py execute.py requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Build Cython code
-RUN easycython 10_vectorized.py 10_vectorized.pyx
+RUN easycython 10_vectorized.py 10_vectorized.pyx & \
+    easycython 10_vectorized.py 10_vectorized.pyx
 
 # Run execut.py
 CMD ["python", "execute.py"]
