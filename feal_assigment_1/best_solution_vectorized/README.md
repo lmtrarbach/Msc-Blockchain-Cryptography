@@ -1,5 +1,6 @@
 ## Vectorized solution
 THis solution was focused in try the use of vectorization of numpy to find the keys in a best performance.
+Example of improvements, on the class instantiation we calculate every possible value that don't requires the K0. With that we reduce  calculations during the loop. Also it do the calculations for the complete arrays which uses numpy and improve performance.
 
 ## execute.py
 
@@ -39,4 +40,6 @@ Create pool of process to run chunks of the array so it don't load all the array
 
 ## Results
 
-This code showed to be best performant that the vectoreized solution. Because can handle better the memory issues.
+This code showed to be best performant that the vectoreized solution alone. Because can handle better the memory allocation. Some attemps that i've tried was alocated all memory in a 32 GB ec2 machine but that was not enough.
+
+Seems to be better performant.

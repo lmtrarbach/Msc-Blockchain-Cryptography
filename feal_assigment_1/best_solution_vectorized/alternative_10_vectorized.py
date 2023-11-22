@@ -1,8 +1,9 @@
 import numpy as np
 from multiprocessing import Pool, cpu_count,set_start_method
 class CryptanalysisFEAL:
-    def __init__(self, data, output_file, bias):
+    def __init__(self, data, output_file, bias, statistics):
         self.output_file = output_file
+        self.statistics = statistics
         self.k0_candidate = set()
         self.array_range = (2 ** 32) - 1 
         self.bias = 200 - bias
@@ -56,6 +57,9 @@ class CryptanalysisFEAL:
         return np.int32(y3 << 24 | y2 << 16 | y3 << 8 | y0 )
     
     def workers(self, start_key_end_key):
+        """
+        Loop thought the range of keys and get the results
+        """
         start_key, end_key = start_key_end_key
         print(f'Starting from range: {start_key} to {end_key}')
         keys_range = np.arange(start_key, end_key, dtype='int32') 
@@ -71,6 +75,10 @@ class CryptanalysisFEAL:
                         file_keys.write('\n')
 
     def count_ones_zeros(self, key):
+        """
+        Execute the a calculations as per Mark Stamps formula.
+        If statistics is enabled provide statistics of the a values
+        """
         KEY = key & 0xFF 
         xor_result = np.bitwise_xor(KEY, self.L0_XOR_R0)  
         x0 = xor_result  & 0xFF     
@@ -81,6 +89,11 @@ class CryptanalysisFEAL:
         a = np.bitwise_xor(self.s_23_29_s_31,s_31_f_round) & 1
         ones = np.count_nonzero(a == 1)
         zeros = np.count_nonzero(a == 0)
+        ones_mean = np.mean(ones)
+        zeros_mean = np.mean(zeros)
+        ones_std = np.std(ones)
+        zeros_std = np.std(zeros)
+        print(f'key:{key} ones_mean: {ones_mean} ones_std: {ones_std} zeros_mean: {zeros_mean} zeros_std:{zeros_std}')
         if (ones > self.bias) or (zeros > self.bias):
             print(f'Possible key at: ones:{ones} zeros:{zeros} key:{key}')
             return key
