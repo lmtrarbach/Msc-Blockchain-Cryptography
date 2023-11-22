@@ -89,11 +89,12 @@ class CryptanalysisFEAL:
         a = np.bitwise_xor(self.s_23_29_s_31,s_31_f_round) & 1
         ones = np.count_nonzero(a == 1)
         zeros = np.count_nonzero(a == 0)
-        ones_mean = np.mean(ones)
-        zeros_mean = np.mean(zeros)
-        ones_std = np.std(ones)
-        zeros_std = np.std(zeros)
-        print(f'key:{key} ones_mean: {ones_mean} ones_std: {ones_std} zeros_mean: {zeros_mean} zeros_std:{zeros_std}')
+        if self.statistics:
+            ones_mean = np.mean(ones)
+            zeros_mean = np.mean(zeros)
+            ones_std = np.std(ones)
+            zeros_std = np.std(zeros)
+            print(f'key:{key} ones_mean: {ones_mean} ones_std: {ones_std} zeros_mean: {zeros_mean} zeros_std:{zeros_std}')
         if (ones > self.bias) or (zeros > self.bias):
             print(f'Possible key at: ones:{ones} zeros:{zeros} key:{key}')
             return key
