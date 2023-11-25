@@ -26,7 +26,7 @@ with open("know.txt", "r") as file:
         plaintext = plaintext_line.split("=")[1].strip()
         ciphertext = ciphertext_line.split("=")[1].strip()
         data.append((plaintext, ciphertext))
-subkey_bit = 0
+subkey_bit = 1
 
 best_correlation = 0
 best_approximation = None
